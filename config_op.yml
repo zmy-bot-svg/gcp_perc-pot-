@@ -1,0 +1,151 @@
+# 🚀 针对RTX 4090服务器优化的GCPNet+PotNet配置
+project_name: "GCPNet_PotNet_4090_hyperopt"
+net: "GCPNet"
+output_dir: "./output_potnet_4090"
+self_loop: True
+n_neighbors: 12
+debug: False
+
+netAttributes:
+  firstUpdateLayers: 4
+  secondUpdateLayers: 4
+  atom_input_features: 105
+  edge_input_features: 50
+  triplet_input_features: 40
+  embedding_features: 64
+  hidden_features: 128                 # 基准值，会被超参数搜索覆盖
+  output_features: 1
+  min_edge_distance: 0.0
+  max_edge_distance: 8.0
+  link: "identity"
+  batch_size: 64                       # 保持原batch_size，PotNet主要影响预处理
+  num_workers: 6
+  dropout_rate: 0.1
+
+# 🆕 PotNet特定参数（会被超参搜索覆盖）
+potnet:
+  enable: True
+  eps: 1.0e-12                        # 数值精度
+  parallel: False                     # 是否并行计算
+  verbose: False                      # 是否输出调试信息
+
+hyperParameters:
+  lr: 0.001
+  optimizer: "AdamW"
+  optimizer_args:
+    weight_decay: 5.0e-5
+  scheduler: "ReduceLROnPlateau"
+  scheduler_args:
+    mode: "min"
+    factor: 0.5
+    patience: 10                      # 🔧 增加patience，PotNet收敛可能更慢
+    min_lr: 1.0e-6
+    threshold: 0.0002
+  seed: 666
+  epochs: 50                          # 🔧 增加epochs，PotNet可能需要更多训练
+  patience: 20                        # 🔧 增加early stopping patience
+
+data:
+  points: all
+  dataset_path: './data'
+  dataset_name: 'jarvis_fe_15k'
+  target_name: 'formation_energy_peratom'
+  pin_memory: True
+  num_folds: 5
+
+predict:
+  model_path: 'model.pt'
+  output_path: 'output.csv'
+
+visualize_args:
+  perplexity: 50
+  early_exaggeration: 12
+  learning_rate: 300
+  n_iter: 5000
+  verbose: 1
+  random_state: 42
+
+# 🚀 优化后的Optuna超参数搜索配置
+optuna:
+  n_trials: 80                        # 🔧 减少试验次数，因为每次试验更慢
+  study_name: "GCPNet_PotNet_4090_hyperopt"
+  direction: "minimize"               # 最小化MAE
+  timeout: null                       # 不设置超时
+  
+  # 🔧 搜索空间配置
+  search_space:
+    # 基础GCPNet参数
+    lr:
+      type: "float"
+      low: 0.0003
+      high: 0.003                     # 🔧 降低学习率范围，PotNet更敏感
+      log: true
+    dropout_rate:
+      type: "float" 
+      low: 0.05
+      high: 0.25                      # 🔧 降低dropout范围
+    weight_decay:
+      type: "float"
+      low: 1.0e-6
+      high: 5.0e-4                    # 🔧 调整weight_decay范围
+      log: true
+    batch_size:
+      type: "categorical"
+      choices: [48, 64, 96, 128]           # 恢复更大的batch_size选项
+    hidden_features:
+      type: "categorical" 
+      choices: [96, 128, 160, 192]         # 🔧 减少模型大小选项
+    
+    # 🆕 PotNet特定参数
+    coulomb_param:
+      type: "float"
+      low: 0.5
+      high: 2.0
+    london_param:
+      type: "float"
+      low: 0.5
+      high: 2.0
+    pauli_param:
+      type: "float"
+      low: 1.0
+      high: 5.0
+    R_grid:
+      type: "int"
+      low: 3
+      high: 6                         # 🔧 限制R_grid避免计算爆炸
+  
+  # 🔧 调整剪枝配置（平衡效率与探索）
+  pruner:
+    enable: true
+    type: "MedianPruner"
+    n_startup_trials: 5               # 🔧 5个trial后开始剪枝
+    n_warmup_steps: 6                 # 🔧 每个trial前5个epoch不剪枝
+    interval_steps: 2                 # 每2个epoch检查一次
+  
+  # 🔧 采样器配置
+  sampler:
+    enable: true
+    type: "TPESampler"
+    params:
+      n_startup_trials: 10            # 🔧 增加startup trials
+      
+  # 🔧 续传配置
+  resume:
+    enable: true
+    auto_detect: true
+    
+wandb:
+  log_enable: False
+  sweep_count: 80
+  entity: "1548532425-null"
+
+# 🔧 系统优化配置
+system:
+  gpu:
+    memory_fraction: 0.85             # 🔧 降低GPU内存使用
+    allow_growth: true
+  cpu:
+    max_workers_ratio: 0.4            # 🔧 降低CPU使用
+  monitoring:
+    log_interval: 5                   # 🔧 更频繁的监控
+    save_interval: 3
