@@ -154,6 +154,7 @@ class GCPNet(BaseModule):
             RBFExpansion(
                 vmin=min_edge_distance, vmax=max_edge_distance, bins=edge_input_features
             ),
+            #RBFExpansion(vmin=-np.pi, vmax=np.pi, bins=dihedral_input_features),#对于二面角来说，理论范围是-π到π？？
             EmbeddingLayer(edge_input_features, embedding_features),
             EmbeddingLayer(embedding_features, hidden_features), 
         )
@@ -164,16 +165,16 @@ class GCPNet(BaseModule):
             EmbeddingLayer(embedding_features, hidden_features), 
         )
 
-        # ==================== 新增模块开始 ==================== #
-        # 为新的3维无穷势能特征（库仑、伦敦、泡利）创建一个新的嵌入层
-        self.inf_edge_embedding = torch.nn.Sequential(
-            EmbeddingLayer(3, embedding_features),
-            EmbeddingLayer(embedding_features, hidden_features), 
-        )
-        # 一个专用的GCAO层，用于处理无穷势能的全连接图
-        self.infinite_update = GCAO(dim=hidden_features, dropout_rate=dropout_rate)
+        # # ==================== 新增模块开始 ==================== #
+        # # 为新的3维无穷势能特征（库仑、伦敦、泡利）创建一个新的嵌入层
+        # self.inf_edge_embedding = torch.nn.Sequential(
+        #     EmbeddingLayer(3, embedding_features),
+        #     EmbeddingLayer(embedding_features, hidden_features), 
+        # )
+        # # 一个专用的GCAO层，用于处理无穷势能的全连接图
+        # self.infinite_update = GCAO(dim=hidden_features, dropout_rate=dropout_rate)
         
-        # ===================== 新增模块结束 ===================== #
+        # # ===================== 新增模块结束 ===================== #
 
         # ==================== 新增：二面角嵌入层 ==================== #
         self.dihedral_embedding = torch.nn.Sequential(
@@ -229,10 +230,10 @@ class GCPNet(BaseModule):
             dihedral_index = g.dihedral_index
         # ==================== 新增结束 ==================== #
         
-        # ==================== 新增: 解包无穷图的数据 ==================== #
-        inf_edge_index = g.inf_edge_index
-        inf_edge_attr = g.inf_edge_attr
-        # ================================================================= #
+        # # ==================== 新增: 解包无穷图的数据 ==================== #
+        # inf_edge_index = g.inf_edge_index
+        # inf_edge_attr = g.inf_edge_attr
+        # # ================================================================= #
 
         # 进行初始嵌入 (已有代码)
         atom_feats = self.atom_embedding(atom_feats)
@@ -265,9 +266,9 @@ class GCPNet(BaseModule):
                 bond_attr = bond_attr + bond_enhancement
         # ================================================================= #
 
-        # ==================== 新增: 嵌入无穷势能特征 ==================== #
-        inf_edge_feats = self.inf_edge_embedding(inf_edge_attr)
-        # ================================================================ #
+        # # ==================== 新增: 嵌入无穷势能特征 ==================== #
+        # inf_edge_feats = self.inf_edge_embedding(inf_edge_attr)
+        # # ================================================================ #
 
         # 在 局部图 上进行GCPNet的序列更新 (已有代码)
         for update in self.firstUpdate:
@@ -280,20 +281,20 @@ class GCPNet(BaseModule):
                 atom_feats, g.edge_index, bond_attr
             )
             
-        # ==================== 新增: 势能信息融合 ==================== #
+        # # ==================== 新增: 势能信息融合 ==================== #
         
-        # 在局部图更新后，将得到的原子特征作为无穷图更新的输入。
-        # 这使得长程物理作用可以调整已经过局部几何信息优化的原子特征。
-        infinite_atom_feats, _ = self.infinite_update(
-            atom_feats, inf_edge_index, inf_edge_feats
-        )
+        # # 在局部图更新后，将得到的原子特征作为无穷图更新的输入。
+        # # 这使得长程物理作用可以调整已经过局部几何信息优化的原子特征。
+        # infinite_atom_feats, _ = self.infinite_update(
+        #     atom_feats, inf_edge_index, inf_edge_feats
+        # )
         
-        # 融合来自局部图和无穷图的信息。简单的逐元素相加是一种有效的方式。
-        final_atom_feats = atom_feats + infinite_atom_feats
-        # ================================================================= #
+        # # 融合来自局部图和无穷图的信息。简单的逐元素相加是一种有效的方式。
+        # final_atom_feats = atom_feats + infinite_atom_feats
+        # # ================================================================= #
 
         # 读出层 (修改为使用融合后的特征)
-        out = global_mean_pool(final_atom_feats, g.batch)
+        out = global_mean_pool(atom_feats, g.batch)
         out = self.fc(out)
 
 

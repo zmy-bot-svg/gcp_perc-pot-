@@ -144,18 +144,18 @@ class Flags:
         for key, val in flattenConfig.items():
             setattr(config, key, val)
 
-        # ========== 新增：添加PotNet参数的默认值 ==========
-        potnet_defaults = {
-            'coulomb_param': 1.0,   # 库仑势参数
-            'london_param': 1.0,    # 伦敦色散势参数  
-            'pauli_param': 2.0,     # 泡利排斥势参数
-            'R_grid': 3             # 势能计算网格半径
-        }
+        # # ========== 新增：添加PotNet参数的默认值 ==========
+        # potnet_defaults = {
+        #     'coulomb_param': 1.0,   # 库仑势参数
+        #     'london_param': 1.0,    # 伦敦色散势参数  
+        #     'pauli_param': 2.0,     # 泡利排斥势参数
+        #     'R_grid': 3             # 势能计算网格半径
+        # }
 
-        for key, val in potnet_defaults.items():
-            if not hasattr(config, key):
-                setattr(config, key, val)
-        # ==============================================
+        # for key, val in potnet_defaults.items():
+        #     if not hasattr(config, key):
+        #         setattr(config, key, val)
+        # # ==============================================
                 
         return config
     

@@ -80,20 +80,20 @@ class MP18(InMemoryDataset):
         # 改进：如果有GPU可用，可以改为torch.device('cuda')以加速计算
         # 自动检测并使用最佳设备
         # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # ========== 新增：保存config和PotNet参数 ==========
+        # # ========== 新增：保存config和PotNet参数 ==========
         self.config = config
-        if config is not None:
-            self.coulomb_param = getattr(config, 'coulomb_param', 1.0)
-            self.london_param = getattr(config, 'london_param', 1.0) 
-            self.pauli_param = getattr(config, 'pauli_param', 2.0)
-            self.R_grid = getattr(config, 'R_grid', 3)
-        else:
-            # 使用默认值
-            self.coulomb_param = 1.0
-            self.london_param = 1.0
-            self.pauli_param = 2.0
-            self.R_grid = 3
-        # ==============================================
+        # if config is not None:
+        #     self.coulomb_param = getattr(config, 'coulomb_param', 1.0)
+        #     self.london_param = getattr(config, 'london_param', 1.0) 
+        #     self.pauli_param = getattr(config, 'pauli_param', 2.0)
+        #     self.R_grid = getattr(config, 'R_grid', 3)
+        # else:
+        #     # 使用默认值
+        #     self.coulomb_param = 1.0
+        #     self.london_param = 1.0
+        #     self.pauli_param = 2.0
+        #     self.R_grid = 3
+        # # ==============================================
         self.device = torch.device('cpu')
 
         # 调用父类初始化方法
@@ -155,7 +155,7 @@ class MP18(InMemoryDataset):
     def processed_file_names(self):
         # 根据所有参数生成唯一的处理文件名，便于缓存和版本控制
         # format方法将各个参数插入到文件名中
-        processed_name = 'data_{}_{}_{}_{}_{}_{}_{}.pt'.format(self.name, self.r, self.n_neighbors, self.edge_steps, self.image_selfloop, self.points, self.target_name, self.R_grid)
+        processed_name = 'data_{}_{}_{}_{}_{}_{}_{}.pt'.format(self.name, self.r, self.n_neighbors, self.edge_steps, self.image_selfloop, self.points, self.target_name, )
         return [processed_name]
 
     # 数据处理主方法，将原始数据转换为PyTorch Geometric格式
@@ -369,41 +369,41 @@ class MP18(InMemoryDataset):
             # 存储全局特征
             data.glob_feat   = sdict["gatgnn_glob_feat"]
 
-            # ==================== 新增代码块开始 ==================== #
-            # 集成PotNet的无穷势能特征
+            # # ==================== 新增代码块开始 ==================== #
+            # # 集成PotNet的无穷势能特征
             
-            logging.info(f"正在为结构 {i} 计算无穷势能...")
-            # A. 为长程相互作用创建一个全连接图
-            num_atoms = data.n_atoms
-            # 创建一个邻接矩阵，其中任意两个不同原子间都存在边
-            adj = torch.ones((num_atoms, num_atoms), device=self.device) - torch.eye(num_atoms, device=self.device)
-            inf_edge_index, _ = dense_to_sparse(adj)
+            # logging.info(f"正在为结构 {i} 计算无穷势能...")
+            # # A. 为长程相互作用创建一个全连接图
+            # num_atoms = data.n_atoms
+            # # 创建一个邻接矩阵，其中任意两个不同原子间都存在边
+            # adj = torch.ones((num_atoms, num_atoms), device=self.device) - torch.eye(num_atoms, device=self.device)
+            # inf_edge_index, _ = dense_to_sparse(adj)
             
-            # B. 准备PotNet算法所需的输入
-            cart_coords = sdict["positions"].numpy().astype(np.double)
-            lattice_mat = sdict["cell"].numpy().astype(np.double)
+            # # B. 准备PotNet算法所需的输入
+            # cart_coords = sdict["positions"].numpy().astype(np.double)
+            # lattice_mat = sdict["cell"].numpy().astype(np.double)
             
-            row, col = inf_edge_index
-            # 计算所有原子对之间的相对位置向量
-            vecs = cart_coords[row] - cart_coords[col]
+            # row, col = inf_edge_index
+            # # 计算所有原子对之间的相对位置向量
+            # vecs = cart_coords[row] - cart_coords[col]
             
-            # D. 调用PotNet的函数，计算三种无穷势能加和
-            coulomb_pot = zeta(vecs, lattice_mat, param=self.coulomb_param, R=self.R_grid)
-            london_pot = zeta(vecs, lattice_mat, param=self.london_param, R=self.R_grid) 
-            pauli_pot = exp(vecs, lattice_mat, param=self.pauli_param, R=self.R_grid)
+            # # D. 调用PotNet的函数，计算三种无穷势能加和
+            # coulomb_pot = zeta(vecs, lattice_mat, param=self.coulomb_param, R=self.R_grid)
+            # london_pot = zeta(vecs, lattice_mat, param=self.london_param, R=self.R_grid) 
+            # pauli_pot = exp(vecs, lattice_mat, param=self.pauli_param, R=self.R_grid)
             
-            # E. 将这三种势能组合成一个边特征张量
-            inf_edge_attr = torch.tensor(
-                np.stack([coulomb_pot, london_pot, pauli_pot], axis=1),
-                dtype=torch.float,
-                device=self.device
-            )
+            # # E. 将这三种势能组合成一个边特征张量
+            # inf_edge_attr = torch.tensor(
+            #     np.stack([coulomb_pot, london_pot, pauli_pot], axis=1),
+            #     dtype=torch.float,
+            #     device=self.device
+            # )
             
-            # F. 将新计算出的特征附加到PyTorch Geometric的Data对象上
-            data.inf_edge_index = inf_edge_index.to(self.device)
-            data.inf_edge_attr = inf_edge_attr
+            # # F. 将新计算出的特征附加到PyTorch Geometric的Data对象上
+            # data.inf_edge_index = inf_edge_index.to(self.device)
+            # data.inf_edge_attr = inf_edge_attr
             
-            # ===================== 新增代码块结束 ===================== #
+            # # ===================== 新增代码块结束 ===================== #
 
         # 生成节点特征（基于原子类型、坐标等）
         logging.info("Generating node features...")
