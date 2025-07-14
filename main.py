@@ -26,7 +26,7 @@ from utils.keras_callbacks import WandbCallback  # Wandb回调函数
 from utils.dataset_utils import MP18, dataset_split, get_dataloader  # 数据集处理工具
 from utils.flags import Flags  # 配置参数管理
 from utils.train_utils import KerasModel, LRScheduler  # 训练工具和学习率调度器
-from utils.transforms import GetAngle, ToFloat  # 数据变换工具
+from utils.transforms import GetPeriodicGeometry, GetY, ToFloat   # 数据变换工具
 
 from utils.optuna_optimizer import OptunaHyperparameterOptimizer
 
@@ -113,9 +113,29 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 # 设置和初始化数据集，这是GCPNet训练的第一步
+# main.py: 第45行 (新修正后)
 def setup_dataset(config):
-    dataset = MP18(root=config.dataset_path, name=config.dataset_name, transform=Compose([GetAngle(), ToFloat(
-        )]), r=config.max_edge_distance, n_neighbors=config.n_neighbors, edge_steps=config.edge_input_features, image_selfloop=True, points=config.points, target_name=config.target_name, config=config)  # ← 新增config参数
+    # 创建一个包含我们所有需要的变换的列表
+    # 顺序很重要: 先用GetY提取目标值，然后计算几何特征，最后转换为浮点数
+    transforms_list = Compose([
+        GetY(), 
+        GetPeriodicGeometry(), 
+        ToFloat()
+    ])
+
+    # 在实例化MP18时，传入这个新的变换列表
+    dataset = MP18(
+        root=config.dataset_path, 
+        name=config.dataset_name, 
+        transform=transforms_list,  # <--- 使用我们定义好的新变换列表
+        r=config.max_edge_distance, 
+        n_neighbors=config.n_neighbors, 
+        edge_steps=config.edge_input_features, 
+        image_selfloop=True, 
+        points=config.points, 
+        target_name=config.target_name, 
+        config=config
+    )
     return dataset
 
 # 初始化GCPNet模型，配置模型的各种超参数
@@ -406,7 +426,8 @@ if __name__ == "__main__":
     elif task_type.lower() == 'hyperparameter':
         print(f"🗄️ 超参数优化任务，主输出目录: {main_output_dir}")
         
-        with open(config.config_file, 'r') as f:
+        # main.py (修正后)
+        with open(config.config_file, 'r', encoding='utf-8') as f:
             full_config = yaml.safe_load(f)
         
         from utils.optuna_optimizer import OptunaHyperparameterOptimizer

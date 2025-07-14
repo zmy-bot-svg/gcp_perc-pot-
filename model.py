@@ -131,6 +131,9 @@ class GCPNet(BaseModule):
                  atom_input_features: int=106,
                  edge_input_features: int=50,
                  triplet_input_features: int=40,
+                 # ==================== 新增参数 ==================== #
+                 dihedral_input_features: int=40,  # 二面角特征维度
+                 # ==================== 新增结束 ==================== #      
                  embedding_features: int=64,
                  hidden_features: int=256,
                  output_features: int=1,
@@ -172,6 +175,13 @@ class GCPNet(BaseModule):
         
         # ===================== 新增模块结束 ===================== #
 
+        # ==================== 新增：二面角嵌入层 ==================== #
+        self.dihedral_embedding = torch.nn.Sequential(
+            RBFExpansion(vmin=min_angle, vmax=max_angle, bins=dihedral_input_features),
+            EmbeddingLayer(dihedral_input_features, embedding_features),
+            EmbeddingLayer(embedding_features, hidden_features), 
+        )
+        # ==================== 新增结束 ==================== #
         # layer to perform atom, bond and andle updates on the graph by 2N GCAO
         self.firstUpdate = torch.nn.ModuleList(
             [GCPNetUpdate(hidden_features,dropout_rate) for _ in range(firstUpdateLayers)]
@@ -211,6 +221,13 @@ class GCPNet(BaseModule):
         atom_feats = g.x
         bond_attr = g.edge_attr
         triplet_feats = g.angle_attr
+                # ==================== 新增：处理二面角特征 ==================== #
+        # 检查是否存在二面角特征
+        has_dihedral = hasattr(g, 'dihedral_attr') and g.dihedral_attr.numel() > 0
+        if has_dihedral:
+            dihedral_feats = g.dihedral_attr
+            dihedral_index = g.dihedral_index
+        # ==================== 新增结束 ==================== #
         
         # ==================== 新增: 解包无穷图的数据 ==================== #
         inf_edge_index = g.inf_edge_index
@@ -221,6 +238,32 @@ class GCPNet(BaseModule):
         atom_feats = self.atom_embedding(atom_feats)
         bond_attr = self.edge_embedding(bond_attr)
         triplet_feats = self.angle_embedding(triplet_feats)
+        # ==================== 新修正：二面角特征融合 ==================== #
+        if has_dihedral:
+            dihedral_feats = g.dihedral_attr
+            dihedral_edge_indices = g.dihedral_index  # 现在这是边的索引
+            
+            # 嵌入二面角特征
+            dihedral_embedded = self.dihedral_embedding(dihedral_feats)
+            
+            # 将二面角特征聚合到对应的边上
+            from torch_scatter import scatter_add
+            
+            # 确保索引在有效范围内
+            valid_mask = dihedral_edge_indices < bond_attr.size(0)
+            if valid_mask.any():
+                valid_dihedral_feats = dihedral_embedded[valid_mask]
+                valid_edge_indices = dihedral_edge_indices[valid_mask]
+                
+                # 聚合到边特征上
+                bond_enhancement = scatter_add(
+                    valid_dihedral_feats, 
+                    valid_edge_indices, 
+                    dim=0, 
+                    dim_size=bond_attr.size(0)
+                )
+                bond_attr = bond_attr + bond_enhancement
+        # ================================================================= #
 
         # ==================== 新增: 嵌入无穷势能特征 ==================== #
         inf_edge_feats = self.inf_edge_embedding(inf_edge_attr)

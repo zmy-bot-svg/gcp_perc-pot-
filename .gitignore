@@ -1,40 +1,71 @@
-# Python
 __pycache__/
+
 *.py[cod]
+
 *.so
+
 .env
+
 .venv
+
 env/
+
 venv/
 
+  
+
 # Distribution / packaging
+
 build/
+
 dist/
+
 eggs/
+
 *.egg-info/
+
 *.egg
 
+  
+
 # Logs and databases
+
 *.log
+
 *.db
+
 hyperparameter_search.log
 
+  
+
 # IDEs
+
 .vscode/
+
 .idea/
 
+  
+
 # OS-specific files
+
 .DS_Store
 
-# PyTorch & Data files
-*.pth
-*.pt
-*.zip
-*.gz
-*.tar
-output*/
-data/
-logs/
+  
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# PyTorch & Data files
+
+*.pth
+
+*.pt
+
+*.zip
+
+*.gz
+
+*.tar
+
+output*/
+
+data/
+
+logs/

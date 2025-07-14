@@ -47,6 +47,7 @@ import torch_geometric.transforms as T
 # 新增：导入PotNet算法函数
 from utils.potnet_algorithm import zeta, exp
 
+
 # 定义MP18数据集类，继承自InMemoryDataset，用于处理材料属性预测数据集
 # pyg的InMemoryDataset类用于存储和处理图数据，提供了高效的数据加载和预处理功能 
 class MP18(InMemoryDataset):
@@ -54,6 +55,12 @@ class MP18(InMemoryDataset):
     # 初始化方法，设置数据集的各种参数
     def __init__(self, root='data/', name='MP18', transform=None, pre_transform=[GetY()], r=8.0, n_neighbors=12, edge_steps=50, image_selfloop=True, points=100,target_name="formation_energy_per_atom", config=None):
         
+                # ==================== 修改：设置新的默认预变换 ==================== #
+        if pre_transform is None:
+            from utils.transforms import GetPeriodicGeometry, GetY, ToFloat 
+            pre_transform = [GetY(), GetPeriodicGeometry(), ToFloat()]
+        # ==================== 修改结束 ==================== #
+
         # 将数据集名称转换为小写并验证是否支持
         self.name = name.lower()
         assert self.name in ['mp18', 'pt','2d','mof','surface','cubic', 'cif','jarvis_fe_15k', 'test_minimal']
@@ -148,7 +155,7 @@ class MP18(InMemoryDataset):
     def processed_file_names(self):
         # 根据所有参数生成唯一的处理文件名，便于缓存和版本控制
         # format方法将各个参数插入到文件名中
-        processed_name = 'data_{}_{}_{}_{}_{}_{}_{}.pt'.format(self.name, self.r, self.n_neighbors, self.edge_steps, self.image_selfloop, self.points, self.target_name)
+        processed_name = 'data_{}_{}_{}_{}_{}_{}_{}.pt'.format(self.name, self.r, self.n_neighbors, self.edge_steps, self.image_selfloop, self.points, self.target_name, self.R_grid)
         return [processed_name]
 
     # 数据处理主方法，将原始数据转换为PyTorch Geometric格式
@@ -380,11 +387,6 @@ class MP18(InMemoryDataset):
             # 计算所有原子对之间的相对位置向量
             vecs = cart_coords[row] - cart_coords[col]
             
-            # C. 使用配置中的参数（而不是硬编码值）
-            coulomb_pot = zeta(vecs, lattice_mat, param=self.coulomb_param, R=self.R_grid)
-            london_pot = zeta(vecs, lattice_mat, param=self.london_param, R=self.R_grid) 
-            pauli_pot = exp(vecs, lattice_mat, param=self.pauli_param, R=self.R_grid)
-    
             # D. 调用PotNet的函数，计算三种无穷势能加和
             coulomb_pot = zeta(vecs, lattice_mat, param=self.coulomb_param, R=self.R_grid)
             london_pot = zeta(vecs, lattice_mat, param=self.london_param, R=self.R_grid) 
@@ -415,8 +417,8 @@ class MP18(InMemoryDataset):
         logging.debug("Applying transforms.")
 
         # 确保GetY变换存在，这对下游模型是必需的
-        assert self.pre_transform[0].__class__.__name__ == "GetY", "The target transform GetY is required in pre_ptransform."
-
+        # assert self.pre_transform[0].__class__.__name__ == "GetY", "The target transform GetY is required in pre_ptransform."
+        assert any(transform.__class__.__name__ == "GetY" for transform in self.pre_transform), "The target transform GetY is required in pre_transform."#新改
         # 组合所有预变换
         composition = Compose(self.pre_transform)
 
@@ -433,12 +435,12 @@ class MP18(InMemoryDataset):
 # 导入PyTorch Geometric的数据加载器
 from torch_geometric.loader import DataLoader
 
-# 数据集分割函数，将数据集分为训练集、验证集和测试集
+# 数据集分割函数，将数据集分为训练集、验证集和测试集,这个不发挥作用具体main发挥作用
 def dataset_split(
     dataset,
     train_size: float = 0.8,     # 训练集比例
-    valid_size: float = 0.05,    # 验证集比例
-    test_size: float = 0.15,     # 测试集比例
+    valid_size: float = 0.1,    # 验证集比例
+    test_size: float = 0.1,     # 测试集比例
     seed: int = 1234,            # 随机种子，确保可重复性
     debug=True,                  # 调试模式标志
 ):     
